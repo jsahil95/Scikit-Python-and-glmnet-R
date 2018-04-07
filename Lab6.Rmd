@@ -1,0 +1,132 @@
+---
+title: "Lab6"
+author: "Sahil Jain"
+date: "November 30, 2017"
+output: html_document
+---
+
+LAB-6 Computational Part 
+
+Interest lies in developing a model that relates a player’s annual salary to their previous performance. Your job in this Lab is to investigate several such models. Where computation is required, you must perform the calculations in R. For bonus points you
+may also perform the calculations using Python (though this is not required).
+
+Loading libraries
+```{r}
+library(glmnet)
+library(boot)
+library(ISLR)
+library(car)
+library(leaps)
+library(MASS)
+library(lars)
+library(parcor)
+```
+
+loading the data  
+```{r}
+hitters <- read.csv("/Users/sahiljain/Downloads/hitters.csv")
+```
+
+Full Model
+```{r}
+model <- lm(hitters$Salary ~., data = hitters)
+summary(model)
+```
+
+Pre-Processing Data
+```{r}
+x <- model.matrix(Salary ~ ., data = hitters)[,-1]
+y <- hitters$Salary
+```
+
+(A)  Fit ridge and LASSO regression models for 1000 values of 𝜆 in the range 0.001 to 10^10. For each type of model construct a plot of the parameter estimates versus 𝜆, with each individual parameter represented as a line of a different color on these plots.
+
+Fitting a Ridge model
+```{r}
+grid <- 10^seq(10, -3, length = 1000)
+fit.ridge <- glmnet(x,y, alpha = 0, lambda = grid)
+plot(fit.ridge, xvar = "lambda", label = TRUE)
+```
+
+Fitting a Lasso model 
+```{r}
+fit.lasso <- glmnet(x,y, alpha = 1, lambda = grid)
+plot(fit.lasso, xvar = "lambda", label = TRUE)
+```
+
+(B)  Randomly split the observed data into a training set with 210 observations and a held-out test set containing 53 observations. For purposes of reproducibility,please set the seed to be 1 using the command set.seed(1).
+
+Splitting data into training and test set 
+```{r}
+set.seed(1)
+train <- sample(1:nrow(x), 210)
+test <- (1:nrow(x))[-train]
+y.test <- y[test]
+```
+
+(C) Using 10-fold cross validation on the training data, find the best ridge regression model. That is, find the optimal value of 𝜆 and the 𝛽 estimates that this corresponds to.
+
+Finding the best Lambda for RIDGE
+```{r}
+set.seed(1)
+ridge.tr <- cv.glmnet(x[train,], y[train], alpha = 0, nfolds = 10)
+plot(ridge.tr)
+```
+
+```{r}
+best.lambda.ridge <- ridge.tr$lambda.min
+best.lambda.ridge
+```
+
+```{r}
+pred <- predict(fit.ridge, s = best.lambda.ridge, type = "coefficients")[1:20,]
+pred
+```
+
+(D) Using 10-fold cross validation on the training data, find the best LASSO regression model. That is, find the optimal value of 𝜆 and the 𝛽 estimates that this corresponds to.
+
+```{r}
+set.seed(1)
+lasso.tr <- cv.glmnet(x[train,], y[train], alpha = 1, nfolds = 10)
+plot(lasso.tr)
+```
+
+```{r}
+best.lambda.lasso <- lasso.tr$lambda.min
+best.lambda.lasso
+```
+
+```{r}
+pred2 <- predict(lasso.tr, s = best.lambda.lasso, type = "coefficients")[1:20,]
+pred2
+```
+
+(E) Compare and contrast the model from part (C) and (D) 
+
+If we look at the two models we can clearly see the differences, Ridge does not zero the coeffiecients where as lasso zero's the coefficients. Apart from that the best lambda value in both cases is completely different of each other. Lambda value in Ridge is significantly greater than lambda value in lasso. 
+
+(F) Compare the predictive accuracy of the best ridge and LASSO regression models from parts (C) and (D), and the best stepwise selection model from Lab 5 (which included the predictors AtBat, Hits, Walks, CAtBat, CRuns, CRBI, CWalks, DivisionW, PutOuts and Assists. In particular, use these models to predict the observations from the held-out test set and calculate the corresponding root mean squared error (RMSE) in each case. Based on this criterion, which model is the best?
+
+Predicting the observations from held out test set in case of Ridge. 
+
+```{r}
+ridge.pred <- predict(ridge.tr, s = best.lambda.ridge, newx = x[test,])
+sqrt(mean((ridge.pred - y.test)^2))
+```
+
+Predicting the observations from held out test set in case of Lasso. 
+
+```{r}
+lasso.pred <- predict(lasso.tr, s = best.lambda.lasso, newx = x[test,])
+sqrt(mean((lasso.pred - y.test)^2))
+```
+
+Predicting the obesrvation from held out test set in case of best stepwise selection model
+
+```{r}
+model <- glm(Salary ~ AtBat + Hits + Walks + CAtBat + CRuns + CRBI + CWalks + Division + PutOuts + Assists, data = hitters)
+RMSE1 <- sqrt((cv.glm(hitters, model, K = 10)$delta)[1])
+RMSE1
+```
+
+Based over these criterion the Lasso is the best model, because RMSE is smallest in the Lasso.
